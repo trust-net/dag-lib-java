@@ -1,10 +1,9 @@
 package org.trustnet.api.client;
 
-import android.util.Base64;
 import android.util.Log;
 
-import org.springframework.web.client.RestClientException;
 import org.trustnet.api.dto.Resource;
+import org.trustnet.api.dto.SubmitRequest;
 import org.trustnet.api.dto.XferValue;
 import org.trustnet.util.Submitter;
 
@@ -14,11 +13,8 @@ import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.http.converter.json.MappingJackson2HttpMessageConverter;
 import org.springframework.web.client.RestTemplate;
-import org.trustnet.api.dto.Anchor;
-import org.trustnet.api.dto.AnchorRequest;
 import org.trustnet.api.dto.Opcode;
 import org.trustnet.api.dto.SubmitResult;
-import org.trustnet.api.dto.Transaction;
 
 /**
  * Client library for spendr test application
@@ -33,8 +29,15 @@ public class SpendrClient {
 
     static private SpendrClient client;
 
+    static {
+        Submitter.initialize("test-driver-for-double-spending");
+    }
     static public void setBaseUrl(String url) {
         baseUrl = url;
+    }
+
+    static public String getBaseUrl() {
+        return baseUrl;
     }
 
     static public SpendrClient instance() {
@@ -60,21 +63,13 @@ public class SpendrClient {
 
     public ResponseEntity<? extends Object> submitTransaction(Opcode payload) {
         try {
-            // fetch an anchor first
-            Anchor anchor = restTemplate.postForEntity(baseUrl + "/anchors",
-                    new AnchorRequest(Submitter.instance().getHexPublicId(), Submitter.instance().getLastTx(), Submitter.instance().getNextSeq()),
-                    Anchor.class).getBody();
-            logger.debug("Got anchor: {}", anchor.toString());
-            Log.d("Got anchor", anchor.toString());
-
-            // sign the payload
-            String txSignature = Submitter.instance().sign(anchor.getsubmitterSeq(), Base64.decode(payload.getPayload(), 0));
-            logger.debug("Signed payload: {}", txSignature);
-            Log.d("Signed anchor", txSignature);
+            // create a transaction request
+            SubmitRequest txRequest = Submitter.instance().newRequest(payload.getPayload());
+            Log.d("Submitting Request", txRequest.toString());
 
             // submit transaction
             ResponseEntity<SubmitResult> response = restTemplate.postForEntity(baseUrl + "/transactions",
-                    new Transaction(anchor, payload.getPayload(), txSignature),
+                    txRequest,
                     SubmitResult.class);
             logger.debug("Submit response: {}", response.toString());
             Log.d("Submit Response", response.toString());
